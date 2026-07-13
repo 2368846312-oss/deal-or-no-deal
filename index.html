@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deal or No Deal · 一掷千金</title>
+<style>
+  :root {
+    --bg-deep: #0a1230;
+    --bg-panel: #131c44;
+    --bg-card: #1c2a63;
+    --bg-card-hover: #25357e;
+    --gold: #f5c542;
+    --gold-soft: #ffe08a;
+    --red: #e23b4e;
+    --green: #2ecc71;
+    --text: #eef2ff;
+    --text-dim: #9aa6d6;
+    --line: #2a3a7a;
+    --shadow: 0 8px 24px rgba(0,0,0,.45);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background: radial-gradient(circle at 50% -10%, #1a2a6c 0%, var(--bg-deep) 60%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  /* ---------- Header ---------- */
+  header {
+    padding: 14px 22px;
+    background: linear-gradient(180deg, rgba(20,30,80,.9), rgba(10,18,48,.6));
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 {
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    text-shadow: 0 2px 8px rgba(245,197,66,.3);
+  }
+  header h1 small { color: var(--text-dim); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+  .phase-badge {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--gold-soft);
+  }
+  .progress-wrap { flex-basis: 100%; margin-top: 4px; }
+  .progress-track {
+    height: 8px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-soft));
+    transition: width .5s ease;
+  }
+  .progress-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ---------- Layout ---------- */
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 18px;
+    padding: 18px 22px;
+    align-items: start;
+  }
+  @media (max-width: 1023px) {
+    .main { grid-template-columns: 1fr; }
+    .side { order: 2; }
+  }
+
+  /* ---------- Boxes grid ---------- */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1023px) { .board { grid-template-columns: repeat(5, 1fr); } }
+  @media (max-width: 640px)  { .board { grid-template-columns: repeat(4, 1fr); } }
+
+  .case {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--radius);
+    background: linear-gradient(160deg, var(--bg-card), #16205a);
+    border: 2px solid var(--line);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .3s ease;
+    box-shadow: var(--shadow);
+    user-select: none;
+    overflow: hidden;
+  }
+  .case:hover:not(.opened):not(.locked):not(.disabled) {
+    transform: translateY(-4px);
+    background: linear-gradient(160deg, var(--bg-card-hover), #1d2a6e);
+    box-shadow: 0 12px 28px rgba(0,0,0,.55);
+  }
+  .case .num {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--gold-soft);
+  }
+  .case .tag {
+    position: absolute;
+    top: 6px; left: 6px;
+    font-size: 9px;
+    background: var(--gold);
+    color: #1a1300;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .case .prize {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gold);
+    opacity: 0;
+    transform: scale(.6);
+    transition: opacity .3s ease, transform .3s ease;
+    text-align: center;
+    padding: 0 4px;
+  }
+  .case.opened {
+    background: linear-gradient(160deg, #2a2f45, #1c2030);
+    border-color: #3a3f55;
+    cursor: default;
+  }
+  .case.opened .num { opacity: 0; }
+  .case.opened .prize { opacity: 1; transform: scale(1); }
+  .case.opened::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.25);
+  }
+  .case.locked {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(245,197,66,.35), var(--shadow);
+  }
+  .case.disabled { cursor: default; opacity: .85; }
+  .case.selectable::before {
+    content: "";
+    position: absolute; inset: 0;
+    border: 2px dashed rgba(245,197,66,.4);
+    border-radius: var(--radius);
+    animation: pulse 1.6s infinite;
+    pointer-events: none;
+  }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.8} }
+  .case.flip { animation: flip .5s ease; }
+  @keyframes flip {
+    0% { transform: rotateY(0); }
+    50% { transform: rotateY(90deg) scale(1.05); }
+    100% { transform: rotateY(0); }
+  }
+
+  /* ---------- Side panel ---------- */
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    font-size: 14px;
+    color: var(--gold-soft);
+    margin-bottom: 10px;
+    letter-spacing: .5px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel h2 .hint { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+
+  .prize-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .prize-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    transition: all .35s ease;
+  }
+  .prize-item .amt { font-weight: 700; color: var(--gold-soft); }
+  .prize-item.gone {
+    opacity: .35;
+    background: #20243a;
+    border-color: #2a2e44;
+  }
+  .prize-item.gone .amt { text-decoration: line-through; color: var(--text-dim); }
+  .prize-item.gone::after { content: " ✕"; color: var(--red); }
+
+  .offer-box {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .offer-box .label { font-size: 12px; color: var(--text-dim); }
+  .offer-box .value {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--gold);
+    margin: 4px 0;
+  }
+  .offer-box .sub { font-size: 11px; color: var(--text-dim); }
+  .offer-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 14px 0; }
+
+  .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+  .stat-row span:last-child { color: var(--gold-soft); font-weight: 700; }
+
+  /* ---------- Footer / controls ---------- */
+  footer {
+    padding: 14px 22px;
+    background: rgba(10,18,48,.7);
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 26px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .5px;
+    transition: transform .12s ease, filter .12s ease, opacity .2s ease;
+    color: #fff;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-deal { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+  .btn-nodeal { background: linear-gradient(135deg, var(--red), #c0392b); }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), #e0a800); color: #1a1300; }
+  .btn-ghost { background: var(--bg-card); border: 1px solid var(--line); color: var(--text); }
+  .btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+  .msg {
+    font-size: 14px;
+    color: var(--gold-soft);
+    min-height: 20px;
+    text-align: center;
+    flex-basis: 100%;
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(4,8,24,.78);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 50;
+    backdrop-filter: blur(3px);
+  }
+  .overlay.show { display: flex; animation: fade .25s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  .modal {
+    background: linear-gradient(160deg, var(--bg-panel), #0e1638);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px 30px;
+    width: min(440px, 92vw);
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    text-align: center;
+    animation: slideUp .35s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes slideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .modal h3 { color: var(--gold); font-size: 20px; margin-bottom: 6px; }
+  .modal .banker-line { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+  .modal .big-offer {
+    font-size: 42px; font-weight: 800; color: var(--gold);
+    margin: 10px 0 4px;
+  }
+  .modal .pool-info { font-size: 12px; color: var(--text-dim); margin-bottom: 18px; }
+  .modal .pool-info b { color: var(--gold-soft); }
+  .modal .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .modal .result-line { font-size: 14px; line-height: 1.7; margin: 10px 0; }
+  .modal .result-line .hl { color: var(--gold); font-weight: 700; }
+  .modal .result-line .good { color: var(--green); font-weight: 700; }
+  .modal .result-line .bad { color: var(--red); font-weight: 700; }
+
+  /* confetti */
+  .confetti {
+    position: fixed; top: -10px; width: 9px; height: 14px;
+    z-index: 60; pointer-events: none; opacity: .9;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+  }
+
+  .history-list { max-height: 180px; overflow-y: auto; font-size: 12px; }
+  .history-list .hrow {
+    display: flex; justify-content: space-between;
+    padding: 4px 6px; border-bottom: 1px solid var(--line);
+  }
+  .history-list .hrow span:last-child { color: var(--gold-soft); }
+  .career { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  .career b { color: var(--gold-soft); }
+</style>
+</head>
+<body>
+<header>
+  <h1>DEAL OR NO DEAL <small>· 一掷千金</small></h1>
+  <div class="phase-badge" id="phaseBadge">准备开始</div>
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">选择你的箱子开始游戏</div>
+  </div>
+</header>
+
+<div class="main">
+  <div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>金额面板 <span class="hint">已开出变灰</span></h2>
+      <div class="prize-grid" id="prizeGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>银行家报价</h2>
+      <div id="offerArea">
+        <div class="offer-empty">尚未产生报价</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>奖池统计</h2>
+      <div class="stat-row"><span>剩余箱子</span><span id="statRemain">26</span></div>
+      <div class="stat-row"><span>剩余最小</span><span id="statMin" class="tnum">—</span></div>
+      <div class="stat-row"><span>剩余最大</span><span id="statMax" class="tnum">—</span></div>
+      <div class="stat-row"><span>期望值</span><span id="statExp" class="tnum">—</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>本轮记录 <span class="hint" id="roundHint"></span></h2>
+      <div class="history-list" id="historyList"><div class="offer-empty">暂无记录</div></div>
+      <div class="career" id="career"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="msg" id="msg">点击任意一个箱子作为你的专属箱子。</div>
+  <button class="btn btn-ghost" id="btnNew">新游戏</button>
+  <button class="btn btn-ghost" id="btnReset">清空战绩</button>
+</footer>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+ * Deal or No Deal — 纯前端单文件实现
+ * 模块对应实施方法.md：config / state / boxes / rounds / banker / ui / history
+ * ========================================================= */
+
+/* ---------- config.js ---------- */
+const PRIZES = [
+  0.01, 1, 5, 10, 25, 50, 75, 100, 200, 300, 400, 500, 750,
+  1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000,
+  300000, 400000, 500000, 750000, 1000000
+];
+const ROUND_PLAN = [6, 5, 4, 3, 2, 1, 1, 1, 1]; // 第1~9轮每轮开箱数
+const BANKER = {
+  roundBase: 0.35,   // 第1轮折扣强度
+  riskBase: 0.45,    // 风险折扣强度
+  minFloor: 0.5      // 报价保底 = minPrize * 该比例
+};
+const STORAGE_KEY = "dond_state_v1";
+const CAREER_KEY = "dond_career_v1";
+
+/* ---------- util ---------- */
+function fmt(n) {
+  if (n === null || n === undefined) return "—";
+  if (n < 1) return "$" + n.toFixed(2);
+  return "$" + Math.round(n).toLocaleString("en-US");
+}
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* ---------- boxes.js ---------- */
+function createBoxes() {
+  const shuffled = shuffle(PRIZES);
+  const boxes = [];
+  for (let i = 0; i < 26; i++) {
+    boxes.push({ id: i + 1, prize: shuffled[i], opened: false, isPlayerBox: false });
+  }
+  return boxes;
+}
+
+/* ---------- banker.js ---------- */
+function expectedValue(prizes) {
+  if (!prizes.length) return 0;
+  return prizes.reduce((a, b) => a + b, 0) / prizes.length;
+}
+function bankerOffer(prizes, roundIndex) {
+  if (!prizes.length) return 0;
+  const mean = expectedValue(prizes);
+  const maxP = Math.max(...prizes);
+  const minP = Math.min(...prizes);
+  const riskRatio = (maxP - minP) / maxP; // 0~1
+  const roundFactor = 1 - BANKER.roundBase * Math.exp(-roundIndex / 3);
+  const riskFactor = 1 - BANKER.riskBase * riskRatio;
+  let offer = mean * roundFactor * riskFactor;
+  offer = Math.max(offer, minP * BANKER.minFloor);
+  return Math.round(offer);
+}
+
+/* ---------- state.js ---------- */
+let state = null;
+
+function newState() {
+  return {
+    boxes: createBoxes(),
+    playerBoxId: null,
+    roundIndex: 0,
+    openedThisRound: 0,
+    lastOffer: null,
+    dealTaken: false,
+    finalPayout: null,
+    phase: "select", // select | open | offer | swap | end
+    history: []
+  };
+}
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || !Array.isArray(s.boxes) || s.boxes.length !== 26) return null;
+    return s;
+  } catch (e) { return null; }
+}
+function clearState() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) {} }
+
+/* ---------- rounds.js ---------- */
+function remainingBoxes() { return state.boxes.filter(b => !b.opened); }
+function remainingPrizes() { return remainingBoxes().map(b => b.prize); }
+function openableBoxes() {
+  return state.boxes.filter(b => !b.opened && b.id !== state.playerBoxId);
+}
+function currentRoundCount() { return ROUND_PLAN[state.roundIndex] || 1; }
+
+/* ---------- history.js ---------- */
+function loadCareer() {
+  try {
+    const raw = localStorage.getItem(CAREER_KEY);
+    if (!raw) return { games: 0, totalWon: 0, deals: 0, best: 0 };
+    return JSON.parse(raw);
+  } catch (e) { return { games: 0, totalWon: 0, deals: 0, best: 0 }; }
+}
+function saveCareer(c) { try { localStorage.setItem(CAREER_KEY, JSON.stringify(c)); } catch (e) {} }
+function recordCareer(payout, dealTaken) {
+  const c = loadCareer();
+  c.games += 1;
+  c.totalWon += payout;
+  if (dealTaken) c.deals += 1;
+  if (payout > c.best) c.best = payout;
+  saveCareer(c);
+  return c;
+}
+
+/* ---------- ui.js ---------- */
+const $ = id => document.getElementById(id);
+const board = $("board");
+const prizeGrid = $("prizeGrid");
+const overlay = $("overlay");
+const modal = $("modal");
+
+function renderBoard() {
+  board.innerHTML = "";
+  state.boxes.forEach(b => {
+    const el = document.createElement("div");
+    el.className = "case";
+    el.dataset.id = b.id;
+    el.setAttribute("aria-label", "Case " + b.id + (b.opened ? "，已打开" : "，未打开"));
+
+    if (b.opened) el.classList.add("opened");
+    if (b.isPlayerBox) {
+      el.classList.add("locked");
+      const tag = document.createElement("div");
+      tag.className = "tag";
+      tag.textContent = "YOUR CASE";
+      el.appendChild(tag);
+    }
+    const num = document.createElement("div");
+    num.className = "num";
+    num.textContent = b.id;
+    el.appendChild(num);
+
+    const prize = document.createElement("div");
+    prize.className = "prize tnum";
+    prize.textContent = fmt(b.prize);
+    el.appendChild(prize);
+
+    // 交互态
+    if (state.phase === "select" && !b.opened) {
+      el.classList.add("selectable");
+      el.addEventListener("click", () => selectPlayerBox(b.id));
+    } else if (state.phase === "open" && !b.opened && b.id !== state.playerBoxId) {
+      if (state.openedThisRound < currentRoundCount()) {
+        el.addEventListener("click", () => openCase(b.id));
+      } else {
+        el.classList.add("disabled");
+      }
+    } else if (state.phase === "open" && !b.opened && b.id === state.playerBoxId) {
+      el.classList.add("disabled");
+    }
+    board.appendChild(el);
+  });
+}
+
+function renderPrizePanel() {
+  prizeGrid.innerHTML = "";
+  const openedPrizes = new Set(state.boxes.filter(b => b.opened).map(b => b.prize));
+  PRIZES.forEach(p => {
+    const item = document.createElement("div");
+    item.className = "prize-item tnum" + (openedPrizes.has(p) ? " gone" : "");
+    item.innerHTML = '<span class="amt">' + fmt(p) + "</span>";
+    prizeGrid.appendChild(item);
+  });
+}
+
+function renderStats() {
+  const rem = remainingBoxes();
+  $("statRemain").textContent = rem.length;
+  if (rem.length) {
+    const prizes = rem.map(b => b.prize);
+    $("statMin").textContent = fmt(Math.min(...prizes));
+    $("statMax").textContent = fmt(Math.max(...prizes));
+    $("statExp").textContent = fmt(expectedValue(prizes));
+  } else {
+    $("statMin").textContent = "—";
+    $("statMax").textContent = "—";
+    $("statExp").textContent = "—";
+  }
+}
+
+function renderOffer() {
+  const area = $("offerArea");
+  if (state.lastOffer === null) {
+    area.innerHTML = '<div class="offer-empty">尚未产生报价</div>';
+  } else {
+    area.innerHTML =
+      '<div class="offer-box">' +
+        '<div class="label">最近报价</div>' +
+        '<div class="value tnum">' + fmt(state.lastOffer) + "</div>" +
+        '<div class="sub">第 ' + (state.roundIndex + 1) + " 轮</div>" +
+      "</div>";
+  }
+}
+
+function renderHistory() {
+  const list = $("historyList");
+  if (!state.history.length) {
+    list.innerHTML = '<div class="offer-empty">暂无记录</div>';
+  } else {
+    list.innerHTML = "";
+    state.history.forEach(h => {
+      const row = document.createElement("div");
+      row.className = "hrow";
+      const openedStr = h.opened.map(o => fmt(o.prize)).join(", ");
+      const dec = h.decision ? " · " + h.decision : "";
+      row.innerHTML = "<span>第" + h.round + "轮 开:" + openedStr + dec + "</span>" +
+                      "<span>" + (h.offer !== null ? fmt(h.offer) : "—") + "</span>";
+      list.appendChild(row);
+    });
+  }
+  const c = loadCareer();
+  $("career").innerHTML = "战绩：共 <b>" + c.games + "</b> 局 · 总赢得 <b>" +
+    fmt(c.totalWon) + "</b> · 最佳 <b>" + fmt(c.best) + "</b>";
+}
+
+function renderProgress() {
+  const totalOpened = state.boxes.filter(b => b.opened).length;
+  const pct = (totalOpened / 25) * 100; // 玩家箱永不开，最多开25个
+  $("progressFill").style.width = pct + "%";
+  const phaseText = {
+    select: "选择你的箱子",
+    open: "第 " + (state.roundIndex + 1) + " 轮 · 还需开 " +
+          (currentRoundCount() - state.openedThisRound) + " 个",
+    offer: "银行家出价中",
+    swap: "终局换箱",
+    end: "游戏结束"
+  };
+  $("progressLabel").textContent = phaseText[state.phase] || "";
+  const badge = {
+    select: "准备开始", open: "开箱阶段", offer: "决策阶段",
+    swap: "终局", end: "已结束"
+  };
+  $("phaseBadge").textContent = badge[state.phase] || "";
+  $("roundHint").textContent = state.phase === "open"
+    ? (state.openedThisRound + "/" + currentRoundCount()) : "";
+}
+
+function renderAll() {
+  renderBoard();
+  renderPrizePanel();
+  renderStats();
+  renderOffer();
+  renderHistory();
+  renderProgress();
+}
+
+function setMsg(t) { $("msg").textContent = t; }
+
+/* ---------- game flow ---------- */
+function selectPlayerBox(id) {
+  state.playerBoxId = id;
+  state.boxes.find(b => b.id === id).isPlayerBox = true;
+  state.phase = "open";
+  state.roundIndex = 0;
+  state.openedThisRound = 0;
+  saveState();
+  renderAll();
+  setMsg("已锁定你的箱子 #" + id + "。现在开始开箱，本轮需开 " + currentRoundCount() + " 个。");
+}
+
+function openCase(id) {
+  const box = state.boxes.find(b => b.id === id);
+  if (box.opened || box.isPlayerBox) return;
+  box.opened = true;
+  box._round = state.roundIndex;
+  state.openedThisRound += 1;
+  saveState();
+
+  // 翻转动画后刷新
+  const el = board.querySelector('.case[data-id="' + id + '"]');
+  if (el) {
+    el.classList.add("flip");
+    setTimeout(() => { renderAll(); afterOpenCheck(); }, 260);
+  } else {
+    renderAll();
+    afterOpenCheck();
+  }
+}
+
+function afterOpenCheck() {
+  if (state.openedThisRound >= currentRoundCount()) {
+    // 本轮开完
+    const rem = remainingBoxes();
+    if (rem.length === 2) {
+      // 进入终局换箱（不再出价）
+      enterSwap();
+    } else {
+      // 银行家出价
+      const offer = bankerOffer(rem.map(b => b.prize), state.roundIndex);
+      state.lastOffer = offer;
+      state.phase = "offer";
+      saveState();
+      renderAll();
+      showOfferModal(offer, rem.map(b => b.prize));
+    }
+  } else {
+    setMsg("本轮还需开 " + (currentRoundCount() - state.openedThisRound) + " 个箱子。");
+  }
+}
+
+/* ---------- modals ---------- */
+function showOverlay(html) {
+  modal.innerHTML = html;
+  overlay.classList.add("show");
+}
+function hideOverlay() { overlay.classList.remove("show"); }
+
+function showOfferModal(offer, prizes) {
+  const minP = Math.min(...prizes), maxP = Math.max(...prizes), exp = expectedValue(prizes);
+  showOverlay(
+    '<h3>银行家报价</h3>' +
+    '<div class="banker-line">第 ' + (state.roundIndex + 1) + ' 轮结束 · 剩余 ' + prizes.length + ' 个箱子</div>' +
+    '<div class="big-offer tnum">' + fmt(offer) + '</div>' +
+    '<div class="pool-info">剩余奖池 最小 <b>' + fmt(minP) + '</b> · 最大 <b>' + fmt(maxP) +
+      '</b> · 期望 <b>' + fmt(exp) + '</b></div>' +
+    '<div class="actions">' +
+      '<button class="btn btn-deal" id="mDeal">DEAL 接受</button>' +
+      '<button class="btn btn-nodeal" id="mNoDeal">NO DEAL 拒绝</button>' +
+    '</div>'
+  );
+  $("mDeal").addEventListener("click", () => confirmDeal(offer));
+  $("mNoDeal").addEventListener("click", () => {
+    hideOverlay();
+    recordRoundDecision("NO DEAL");
+    state.phase = "open";
+    state.roundIndex += 1;
+    state.openedThisRound = 0;
+    saveState();
+    renderAll();
+    setMsg("你拒绝了报价！进入第 " + (state.roundIndex + 1) + " 轮，需开 " + currentRoundCount() + " 个。");
+  });
+}
+
+function confirmDeal(offer) {
+  showOverlay(
+    '<h3>确认接受？</h3>' +
+    '<div class="banker-line">游戏将立即结束，你获得</div>' +
+    '<div class="big-offer tnum">' + fmt(offer) + '</div>' +
+    '<div class="actions">' +
+      '<button class="btn btn-deal" id="cYes">确定接受</button>' +
+      '<button class="btn btn-ghost" id="cNo">再想想</button>' +
+    '</div>'
+  );
+  $("cYes").addEventListener("click", () => takeDeal(offer));
+  $("cNo").addEventListener("click", () => showOfferModal(offer, remainingPrizes()));
+}
+
+function recordRoundDecision(decision) {
+  const openedThis = state.boxes
+    .filter(b => b.opened && b._round === state.roundIndex)
+    .map(b => ({ id: b.id, prize: b.prize }));
+  state.history.push({
+    round: state.roundIndex + 1,
+    opened: openedThis,
+    remainingCount: remainingBoxes().length,
+    offer: state.lastOffer,
+    decision: decision
+  });
+  saveState();
+}
+
+function takeDeal(offer) {
+  state.dealTaken = true;
+  state.finalPayout = offer;
+  state.phase = "end";
+  hideOverlay();
+  saveState();
+  recordCareer(offer, true);
+  renderAll();
+  const playerBox = state.boxes.find(b => b.isPlayerBox);
+  const diff = offer - playerBox.prize;
+  const cmp = diff >= 0
+    ? '<span class="good">你比箱子实际金额多赚了 ' + fmt(diff) + '</span>'
+    : '<span class="bad">你的箱子实际有 ' + fmt(playerBox.prize) + '，少拿了 ' + fmt(-diff) + '</span>';
+  showEndModal(
+    "成交！",
+    "你接受了银行家的报价。",
+    "最终获得：<span class='hl'>" + fmt(offer) + "</span><br>" +
+    "你的箱子 #" + playerBox.id + " 实际金额：" + fmt(playerBox.prize) + "<br>" + cmp
+  );
+  confetti();
+}
+
+function enterSwap() {
+  state.phase = "swap";
+  saveState();
+  renderAll();
+  const other = remainingBoxes().find(b => !b.isPlayerBox);
+  const player = state.boxes.find(b => b.isPlayerBox);
+  showOverlay(
+    '<h3>终局 · 换箱？</h3>' +
+    '<div class="banker-line">只剩两个箱子：你的 #' + player.id + ' 与 未开的 #' + other.id + '</div>' +
+    '<div class="result-line">你的箱子 #' + player.id + '：<span class="hl">未知</span><br>' +
+      '剩余箱子 #' + other.id + '：<span class="hl">未知</span></div>' +
+    '<div class="actions">' +
+      '<button class="btn btn-gold" id="sKeep">KEEP 保留原箱</button>' +
+      '<button class="btn btn-nodeal" id="sSwap">SWAP 交换</button>' +
+    '</div>'
+  );
+  $("sKeep").addEventListener("click", () => finishGame(player.id));
+  $("sSwap").addEventListener("click", () => finishGame(other.id));
+}
+
+function finishGame(revealedId) {
+  // revealedId = 玩家最终保留的箱子（保留则=playerBox，交换则=other）
+  const player = state.boxes.find(b => b.isPlayerBox);
+  const finalPrize = state.boxes.find(b => b.id === revealedId).prize;
+  state.finalPayout = finalPrize;
+  state.dealTaken = false;
+  state.phase = "end";
+  saveState();
+  recordCareer(finalPrize, false);
+  renderAll();
+  const otherId = revealedId === player.id ? remainingBoxes().find(b => b.id !== player.id).id : player.id;
+  const otherPrize = state.boxes.find(b => b.id === otherId).prize;
+  showEndModal(
+    "揭晓时刻！",
+    "你最终保留的是箱子 #" + revealedId + "。",
+    "你的奖金：<span class='hl'>" + fmt(finalPrize) + "</span><br>" +
+    "另一个箱子 #" + otherId + " 金额：" + fmt(otherPrize)
+  );
+  if (finalPrize >= 100000) confetti();
+}
+
+function showEndModal(title, sub, body) {
+  showOverlay(
+    '<h3>' + title + '</h3>' +
+    '<div class="banker-line">' + sub + '</div>' +
+    '<div class="result-line">' + body + '</div>' +
+    '<div class="actions"><button class="btn btn-gold" id="eNew">再来一局</button></div>'
+  );
+  $("eNew").addEventListener("click", () => startNewGame());
+}
+
+/* ---------- confetti ---------- */
+function confetti() {
+  const colors = ["#f5c542", "#2ecc71", "#e23b4e", "#5dade2", "#fff"];
+  for (let i = 0; i < 80; i++) {
+    const c = document.createElement("div");
+    c.className = "confetti";
+    c.style.left = Math.random() * 100 + "vw";
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration = (2 + Math.random() * 2) + "s";
+    c.style.animationDelay = (Math.random() * 0.6) + "s";
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 4500);
+  }
+}
+
+/* ---------- lifecycle ---------- */
+function startNewGame() {
+  clearState();
+  state = newState();
+  saveState();
+  hideOverlay();
+  renderAll();
+  setMsg("点击任意一个箱子作为你的专属箱子。");
+}
+
+function resumeGame() {
+  renderAll();
+  if (state.phase === "select") {
+    setMsg("点击任意一个箱子作为你的专属箱子。");
+  } else if (state.phase === "open") {
+    setMsg("第 " + (state.roundIndex + 1) + " 轮 · 还需开 " +
+      (currentRoundCount() - state.openedThisRound) + " 个箱子。");
+  } else if (state.phase === "offer") {
+    setMsg("银行家已出价，请查看弹窗。");
+    showOfferModal(state.lastOffer, remainingPrizes());
+  } else if (state.phase === "swap") {
+    setMsg("终局换箱阶段。");
+    enterSwap();
+  } else if (state.phase === "end") {
+    setMsg("本局已结束，可开始新游戏。");
+  }
+}
+
+/* ---------- buttons ---------- */
+$("btnNew").addEventListener("click", () => startNewGame());
+$("btnReset").addEventListener("click", () => {
+  if (confirm("确定清空所有历史战绩？当前游戏进度也会重置。")) {
+    try { localStorage.removeItem(CAREER_KEY); } catch (e) {}
+    startNewGame();
+  }
+});
+// 键盘：报价弹窗 Enter=DEAL, Esc=NO DEAL
+document.addEventListener("keydown", e => {
+  if (!overlay.classList.contains("show")) return;
+  if (e.key === "Enter" && $("mDeal")) $("mDeal").click();
+  if (e.key === "Escape" && $("mNoDeal")) $("mNoDeal").click();
+});
+
+/* ---------- boot ---------- */
+(function boot() {
+  const saved = loadState();
+  if (saved) {
+    state = saved;
+    // 兼容旧存档缺字段
+    if (state.history === undefined) state.history = [];
+    resumeGame();
+  } else {
+    state = newState();
+    saveState();
+    renderAll();
+    setMsg("点击任意一个箱子作为你的专属箱子。");
+  }
+})();
+</script>
+</body>
+</html>
